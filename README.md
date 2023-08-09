@@ -1,1 +1,1 @@
-Script to process the data from (SQuAD)[https://rajpurkar.github.io/SQuAD-explorer/] and generate LLM answers to use for benchmarking with (MGTBench)[https://github.com/xinleihe/MGTBench]
+Script to process the data from [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/) and generate LLM answers to use for benchmarking with [MGTBench](https://github.com/xinleihe/MGTBench)
