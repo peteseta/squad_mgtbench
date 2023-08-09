@@ -3,6 +3,8 @@ import csv
 import json
 import os
 from tqdm import tqdm
+import time
+import pickle
 
 import tiktoken
 import openai
@@ -20,25 +22,38 @@ GPT_4_MODEL_CODE = "gpt-4-0613"
 
 total_spending = 0
 
-
 def call_openai(question, model, system_prompt="You are a helpful assistant."):
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question},
-        ],
-    )
-    return response.choices[0].message["content"].replace('\n', ' ')
+    attempts = 0
+    while attempts < 3:
+        try:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": question},
+                ],
+            )
+            return response.choices[0].message["content"].replace('\n', ' ')
+        except:
+            attempts += 1
+            time.sleep(5)
+    raise Exception("Failed to get a response from OpenAI after 3 attempts.")
 
 def call_anthropic(question):
-    anthropic = Anthropic()
-    completion = anthropic.completions.create(
-        model="claude-2",
-        max_tokens_to_sample=500,
-        prompt=f"{HUMAN_PROMPT} {question} {AI_PROMPT}",
-    )
-    return completion.completion.replace('\n', ' ')
+    attempts = 0
+    while attempts < 3:
+        try:
+            anthropic = Anthropic()
+            completion = anthropic.completions.create(
+                model="claude-2",
+                max_tokens_to_sample=500,
+                prompt=f"{HUMAN_PROMPT} {question} {AI_PROMPT}",
+            )
+            return completion.completion.replace('\n', ' ')
+        except:
+            attempts += 1
+            time.sleep(5)
+    raise Exception("Failed to get a response from Anthropic after 3 attempts.")
 
 def generate_prompt(question, context):
     prompt = (
@@ -56,11 +71,11 @@ def cost_per_qna(prompt, gpt_35_response, gpt_4_response):
     gpt_4_response_tokens = len(enc.encode(gpt_4_response))
     
     # GPT-4: $0.03 / 1K tokens input, $0.06 / 1K tokens output
-    # GPT-3.5: $0.0015 / 1K tokens	$0.002 / 1K tokens
-    # USD to THB conversion rate: 1 USD = 35 THB
-    
+    # GPT-3.5: $0.0015 / 1K tokens	$0.002 / 1K tokens  
     gpt_4_cost = (prompt_tokens * 0.03 + gpt_4_response_tokens * 0.06) / 1000
     gpt_35_cost = 2*((prompt_tokens * 0.0015 + gpt_35_response_tokens * 0.002) / 1000)
+    
+    # USD to THB conversion rate: 1 USD = 35 THB
     total_cost = (gpt_4_cost + gpt_35_cost)*35
     
     total_spending += total_cost
@@ -69,15 +84,15 @@ def cost_per_qna(prompt, gpt_35_response, gpt_4_response):
 def process(input_data):
     output_data = []
     
-    for topic_index, entry in enumerate(tqdm(input_data, desc="Topics")):  # To loop over each topic
-        for paragraph_index, item in enumerate(tqdm(entry["paragraphs"], desc=f"Paragraphs for {entry['title']}")):  # loop over each paragraph in a topic
-            context = item["context"]
+    for topic_index, topic in enumerate(tqdm(input_data[last_topic:], desc="Topics")):  # To loop over each topic
+        for paragraph_index, paragraph in enumerate(tqdm(topic["paragraphs"][last_paragraph:], desc=f"Paragraphs for {topic['title']}")):  # loop over each paragraph in a topic
+            context = paragraph["context"]
             
             # Filtering out 'impossible' questions.
-            valid_questions = [q for q in item["qas"] if not q.get('is_impossible', False)]
-            print(f"{len(valid_questions)} questions in this paragraph.")
+            valid_questions = [q for q in paragraph["qas"] if not q.get('is_impossible', False)]
+            # print(f"{len(valid_questions)} questions in this paragraph.")
             
-            for qna_index, qna in enumerate(tqdm(valid_questions, desc="Questions")): # loop over each q&a in the paragraph
+            for qna_index, qna in enumerate(tqdm(valid_questions[last_qna:], desc="Questions")): # loop over each q&a in the paragraph
                 id_ = qna["id"]
                 question = qna["question"]
                 answer_text = [ans["text"] for ans in qna["answers"]]
@@ -87,7 +102,7 @@ def process(input_data):
                 llm_question = generate_prompt(question, context)
                 
                 # print(f"TOPIC {topic_index+1} OF {len(input_data)}")
-                # print(f"PARAGRAPH {paragraph_index+1} OF {len(entry['paragraphs'])}")
+                # print(f"PARAGRAPH {paragraph_index+1} OF {len(topic['paragraphs'])}")
                 # print(f"QUESTION {qna_index+1} OF {len(valid_questions)}")
                 tqdm.write(f"{question}")
 
@@ -111,10 +126,10 @@ def process(input_data):
                 tqdm.write(f"qna cost: {qna_cost}THB | total cost: {acc_cost}THB")
                 tqdm.write("-------------------------------------------------------------------------")
                 
-                # Append this processed QnA to the output data
+                # append this processed QnA to the output data
                 output_data.append({
                     "id": id_,
-                    "title": entry["title"],
+                    "title": topic["title"],
                     "context": context,
                     "question": question,
                     "answers": answers,
@@ -125,12 +140,15 @@ def process(input_data):
                     "claude_answer": claude_answer
                 })
 
-                # Write this QnA to the CSV file
+                # write this QnA to the CSV file
                 with open("SQuAD_2.csv", 'a', newline='', encoding='utf-8') as csv_file:
                     writer = csv.writer(csv_file)
-                    writer.writerow([id_, entry["title"], context, question, answers, llm_question, gpt35_answer, gpt35_prompted_answer, gpt4_answer, claude_answer])
+                    writer.writerow([id_, topic["title"], context, question, answers, llm_question, gpt35_answer, gpt35_prompted_answer, gpt4_answer, claude_answer])
+                    
+                # save progress to pickle
+                with open("progress.pkl", "wb") as pfile:
+                    pickle.dump((topic_index + last_topic, paragraph_index + last_paragraph, qna_index + last_qna + 1, total_spending), pfile)
 
-# Assuming the JSON data from SQuAD2.0 is stored in a variable named 'data'
 with open("train-v2.0.json", "r") as file:
     raw_data = json.load(file)
     data = raw_data['data']
@@ -140,5 +158,12 @@ if write_header:
     with open("SQuAD_2.csv", 'a', newline='', encoding='utf-8') as csv_file:
                     writer = csv.writer(csv_file)
                     writer.writerow(["id", "title", "context", "question", "answers", "Question", "ChatGPT-0613_answer", "ChatGPT-0613-prompted_answer", "GPT4_answer", "Claude2_answer"])
-    
+
+# attempts to load previous progress if exists
+try:
+    with open("progress.pkl", "rb") as pfile:
+        last_topic, last_paragraph, last_qna, total_spending = pickle.load(pfile)
+except (FileNotFoundError, EOFError):
+    last_topic, last_paragraph, last_qna, total_spending = 0, 0, 0
+
 process(data)
