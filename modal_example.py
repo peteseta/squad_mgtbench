@@ -70,7 +70,7 @@ stub = Stub("example-vllm-inference", image=image)
 
 # The `vLLM` library allows the code to remain quite clean.
 
-@stub.cls(gpu="A100", secret=Secret.from_name("huggingface"))
+@stub.cls(gpu="A100", secret=Secret.from_name("my-huggingface-secret"))
 class Model:
     def __enter__(self):
         from vllm import LLM
