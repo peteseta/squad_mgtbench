@@ -39,7 +39,7 @@ def call_hf(question, context):
 def generate_prompt(question, context):
     prompt = (
         f"I will provide a passage and a question to you. The answer should be extracted from the context."
-        f"You need to return me your answer. The passage is '{context}' and the  question is '{question}'."
+        f"You need to return me your answer. The passage is '{context}' and the question is '{question}'."
         f"Now, please answer the question."
     )
     return prompt
