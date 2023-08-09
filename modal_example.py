@@ -108,24 +108,6 @@ ASSISTANT: """
 def main():
     model = Model()
     questions = [
-        # Coding questions
-        "Implement a Python function to compute the Fibonacci numbers.",
-        "Write a Rust function that performs binary exponentiation.",
-        "How do I allocate memory in C?",
-        "What are the differences between Javascript and Python?",
-        "How do I find invalid indices in Postgres?",
-        "How can you implement a LRU (Least Recently Used) cache in Python?",
-        "What approach would you use to detect and prevent race conditions in a multithreaded application?",
-        "Can you explain how a decision tree algorithm works in machine learning?",
-        "How would you design a simple key-value store database from scratch?",
-        "How do you handle deadlock situations in concurrent programming?",
-        "What is the logic behind the A* search algorithm, and where is it used?",
-        "How can you design an efficient autocomplete system?",
-        "What approach would you take to design a secure session management system in a web application?",
-        "How would you handle collision in a hash table?",
-        "How can you implement a load balancer for a distributed system?",
-        # Literature
-        "What is the fable involving a fox and grapes?",
         "Write a story in the style of James Joyce about a trip to the Australian outback in 2083, to see robots in the beautiful desert.",
         "Who does Harry turn into a balloon?",
         "Write a tale about a time-traveling historian who's determined to witness the most significant events in human history.",
