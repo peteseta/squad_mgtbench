@@ -21,6 +21,7 @@ GPT_35_MODEL_CODE = "gpt-3.5-turbo-0613"
 GPT_4_MODEL_CODE = "gpt-4-0613"
 
 total_spending = 0
+all_costs = []
 
 def call_openai(question, model, system_prompt="You are a helpful assistant."):
     attempts = 0
@@ -33,8 +34,10 @@ def call_openai(question, model, system_prompt="You are a helpful assistant."):
                     {"role": "user", "content": question},
                 ],
             )
+            time.sleep(2)
             return response.choices[0].message["content"].replace('\n', ' ')
         except:
+            tqdm.write("Failed to get a response from OpenAI. Retrying...")
             attempts += 1
             time.sleep(5)
     raise Exception("Failed to get a response from OpenAI after 3 attempts.")
@@ -51,6 +54,7 @@ def call_anthropic(question):
             )
             return completion.completion.replace('\n', ' ')
         except:
+            tqdm.write("Failed to get a response from Anthropic. Retrying...")
             attempts += 1
             time.sleep(5)
     raise Exception("Failed to get a response from Anthropic after 3 attempts.")
@@ -79,20 +83,20 @@ def cost_per_qna(prompt, gpt_35_response, gpt_4_response):
     total_cost = (gpt_4_cost + gpt_35_cost)*35
     
     total_spending += total_cost
-    return total_cost, total_spending
+    return total_cost
     
 def process(input_data):
     output_data = []
     
     for topic_index, topic in enumerate(tqdm(input_data[last_topic:], desc="Topics")):  # To loop over each topic
-        for paragraph_index, paragraph in enumerate(tqdm(topic["paragraphs"][last_paragraph:], desc=f"Paragraphs for {topic['title']}")):  # loop over each paragraph in a topic
+        for paragraph_index, paragraph in enumerate(tqdm(topic["paragraphs"][last_paragraph:max(len(topic["paragraphs"])//8, 1)], desc=f"Paragraphs for {topic['title']}")):  # loop over each paragraph in a topic
             context = paragraph["context"]
             
             # Filtering out 'impossible' questions.
             valid_questions = [q for q in paragraph["qas"] if not q.get('is_impossible', False)]
             # print(f"{len(valid_questions)} questions in this paragraph.")
             
-            for qna_index, qna in enumerate(tqdm(valid_questions[last_qna:], desc="Questions")): # loop over each q&a in the paragraph
+            for qna_index, qna in enumerate(tqdm(valid_questions[last_qna:max(len(valid_questions)//8, 1)], desc="Questions")): # loop over each q&a in the paragraph
                 id_ = qna["id"]
                 question = qna["question"]
                 answer_text = [ans["text"] for ans in qna["answers"]]
@@ -122,8 +126,33 @@ def process(input_data):
                 claude_answer = call_anthropic(llm_question)
                 tqdm.write(f"claude: {claude_answer}")
                 
-                qna_cost, acc_cost = cost_per_qna(llm_question, gpt35_answer, gpt4_answer)
-                tqdm.write(f"qna cost: {qna_cost}THB | total cost: {acc_cost}THB")
+                # cost things
+                qna_cost = cost_per_qna(llm_question, gpt35_answer, gpt4_answer)
+                all_costs.append(qna_cost)
+                average_cost_per_qna = sum(all_costs) / len(all_costs)
+                
+                # For the current topic
+                remaining_qna = len(valid_questions) - (qna_index + last_qna + 1)
+                
+                # For the entire dataset:
+                remaining_topics = len(input_data) - (topic_index + last_topic + 1)
+                remaining_paragraphs_in_current_topic = len(topic["paragraphs"]) - (paragraph_index + last_paragraph)
+                
+                # Average QnAs per paragraph
+                avg_qna_per_paragraph = sum([len(p["qas"]) for t in input_data for p in t["paragraphs"]]) / sum([len(t["paragraphs"]) for t in input_data])
+                
+                # Average paragraphs per topic
+                avg_paragraphs_per_topic = sum([len(t["paragraphs"]) for t in input_data]) / len(input_data)
+                
+                # Total remaining QnAs
+                total_remaining_qna = (remaining_topics * avg_paragraphs_per_topic * avg_qna_per_paragraph) + (remaining_paragraphs_in_current_topic * avg_qna_per_paragraph) + remaining_qna
+                
+                estimated_cost_for_topic = average_cost_per_qna * avg_qna_per_paragraph * remaining_paragraphs_in_current_topic
+                estimated_cost_for_dataset = average_cost_per_qna * total_remaining_qna
+                
+                tqdm.write(f"qna cost: {qna_cost}THB | total cost: {total_spending}THB")
+                tqdm.write(f"Estimated cost for topic: {estimated_cost_for_topic:.2f} THB")
+                tqdm.write(f"Estimated total cost for dataset: {estimated_cost_for_dataset:.2f} THB")
                 tqdm.write("-------------------------------------------------------------------------")
                 
                 # append this processed QnA to the output data
@@ -147,7 +176,7 @@ def process(input_data):
                     
                 # save progress to pickle
                 with open("progress.pkl", "wb") as pfile:
-                    pickle.dump((topic_index + last_topic, paragraph_index + last_paragraph, qna_index + last_qna + 1, total_spending), pfile)
+                    pickle.dump((topic_index, paragraph_index, qna_index + 1, total_spending), pfile)
 
 with open("train-v2.0.json", "r") as file:
     raw_data = json.load(file)
@@ -160,10 +189,16 @@ if write_header:
                     writer.writerow(["id", "title", "context", "question", "answers", "Question", "ChatGPT-0613_answer", "ChatGPT-0613-prompted_answer", "GPT4_answer", "Claude2_answer"])
 
 # attempts to load previous progress if exists
-try:
-    with open("progress.pkl", "rb") as pfile:
-        last_topic, last_paragraph, last_qna, total_spending = pickle.load(pfile)
-except (FileNotFoundError, EOFError):
-    last_topic, last_paragraph, last_qna, total_spending = 0, 0, 0
+# try:
+#     with open("progress.pkl", "rb") as pfile:
+#         last_topic, last_paragraph, last_qna, total_spending = pickle.load(pfile)
+#     tqdm.write(f"Loaded previous progress: {last_topic}, {last_paragraph}, {last_qna}, {total_spending}")
+# except (FileNotFoundError, EOFError):
+#     last_topic, last_paragraph, last_qna, total_spending = 0, 0, 0
+
+last_topic = 366
+last_paragraph = 0
+last_qna = 0
+total_spending = 771.80
 
 process(data)
