@@ -34,7 +34,7 @@ def call_openai(question, model, system_prompt="You are a helpful assistant."):
                     {"role": "user", "content": question},
                 ],
             )
-            time.sleep(2)
+            # time.sleep(2)
             return response.choices[0].message["content"].replace('\n', ' ')
         except:
             tqdm.write("Failed to get a response from OpenAI. Retrying...")
@@ -189,16 +189,17 @@ if write_header:
                     writer.writerow(["id", "title", "context", "question", "answers", "Question", "ChatGPT-0613_answer", "ChatGPT-0613-prompted_answer", "GPT4_answer", "Claude2_answer"])
 
 # attempts to load previous progress if exists
-# try:
-#     with open("progress.pkl", "rb") as pfile:
-#         last_topic, last_paragraph, last_qna, total_spending = pickle.load(pfile)
-#     tqdm.write(f"Loaded previous progress: {last_topic}, {last_paragraph}, {last_qna}, {total_spending}")
-# except (FileNotFoundError, EOFError):
-#     last_topic, last_paragraph, last_qna, total_spending = 0, 0, 0
+try:
+    with open("progress.pkl", "rb") as pfile:
+        last_topic, last_paragraph, last_qna, total_spending = pickle.load(pfile)
+    tqdm.write(f"Loaded previous progress: {last_topic}, {last_paragraph}, {last_qna}, {total_spending}")
+except (FileNotFoundError, EOFError):
+    last_topic, last_paragraph, last_qna, total_spending = 0, 0, 0
 
-last_topic = 366
-last_paragraph = 0
-last_qna = 0
-total_spending = 771.80
+# manual override
+# last_topic = 366
+# last_paragraph = 0
+# last_qna = 0
+# total_spending = 771.80
 
 process(data)
