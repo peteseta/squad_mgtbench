@@ -79,10 +79,9 @@ def cost_per_qna(prompt, gpt_35_response, gpt_4_response):
     gpt_4_cost = (prompt_tokens * 0.03 + gpt_4_response_tokens * 0.06) / 1000
     gpt_35_cost = 2*((prompt_tokens * 0.0015 + gpt_35_response_tokens * 0.002) / 1000)
     
-    # USD to THB conversion rate: 1 USD = 35 THB
-    total_cost = (gpt_4_cost + gpt_35_cost)*35
+    total_cost = (gpt_4_cost + gpt_35_cost)
     
-    total_spending += total_cost
+    total_spending += gpt_4_cost + gpt_35_cost
     return total_cost
     
 def process(input_data):
@@ -150,9 +149,9 @@ def process(input_data):
                 estimated_cost_for_topic = average_cost_per_qna * avg_qna_per_paragraph * remaining_paragraphs_in_current_topic
                 estimated_cost_for_dataset = average_cost_per_qna * total_remaining_qna
                 
-                tqdm.write(f"qna cost: {qna_cost}THB | total cost: {total_spending}THB")
-                tqdm.write(f"Estimated cost for topic: {estimated_cost_for_topic:.2f} THB")
-                tqdm.write(f"Estimated total cost for dataset: {estimated_cost_for_dataset:.2f} THB")
+                tqdm.write(f"qna cost: ${qna_cost} | total cost: ${total_spending}")
+                tqdm.write(f"Estimated cost for topic: ${estimated_cost_for_topic:.2f}")
+                tqdm.write(f"Estimated total cost for dataset: ${estimated_cost_for_dataset:.2f}")
                 tqdm.write("-------------------------------------------------------------------------")
                 
                 # append this processed QnA to the output data
